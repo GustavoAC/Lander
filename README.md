@@ -23,7 +23,7 @@ Arch & based | `sudo pacman -S gcc`
 
 ##INSTALLATION
 
-```
+```bash
 git clone https://github.com/Capuno/Lander.git
 cd Lander
 make && sudo make install
