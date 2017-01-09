@@ -21,6 +21,14 @@ Debian & based | `sudo apt install g++ libncurses5-dev libncursesw5-dev`
 Arch & based | `sudo pacman -S gcc`
 
 
+##INSTALLATION
+
+```
+git clone https://github.com/Capuno/Lander.git
+cd Lander
+make && sudo make install
+```
+
 ##CONTROLS
 
  * `z` moves left
