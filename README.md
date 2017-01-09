@@ -26,7 +26,8 @@ Arch & based | `sudo pacman -S gcc`
 ```bash
 git clone https://github.com/Capuno/Lander.git
 cd Lander
-make && sudo make install
+make
+./lander_game
 ```
 
 ##CONTROLS
