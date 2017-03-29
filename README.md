@@ -5,14 +5,14 @@ CLI Top-Down Space Shooter
 
 Lander is a top-down shooter made in C++
 
-##CONTRIBUTORS
+## CONTRIBUTORS
 Main Contributors:
 
 * [MrWhiteGoat](https://github.com/MrWhiteGoat)
 * [Capuno](https://github.com/Capuno)
 
 
-##DEPENDENCIES
+## DEPENDENCIES
 > `libncurses5-dev`, `g++`, `libncursesw5-dev`
 
 Distro | Command
@@ -21,7 +21,7 @@ Debian & based | `sudo apt install g++ libncurses5-dev libncursesw5-dev`
 Arch & based | `sudo pacman -S gcc`
 
 
-##INSTALLATION
+## INSTALLATION
 
 ```bash
 git clone https://github.com/Capuno/Lander.git
@@ -30,7 +30,7 @@ make
 ./lander_game
 ```
 
-##CONTROLS
+## CONTROLS
 
  * `z` moves left
  * `x` shoots
@@ -42,6 +42,6 @@ This can be configured in `config.h` before compiling.
 
 &emsp;
 
-###KNOWN ISSUES
+### KNOWN ISSUES
 * *Laser changing color to red*
 * *Console causes visual glitch*
