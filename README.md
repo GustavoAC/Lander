@@ -42,7 +42,7 @@ Before compiling and running the program, be sure to have your BeagleBone Black 
 configuration like stated above.  
 
 ```bash
-git clone https://github.com/Capuno/Lander.git
+git clone https://github.com/GustavoAC/Lander.git
 cd Lander
 make
 ./lander_game
