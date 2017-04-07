@@ -30,8 +30,8 @@ Debian & based | `sudo apt install g++ libncurses5-dev libncursesw5-dev`
 Arch & based | `sudo pacman -S gcc`
 
 ## BEAGLEBONE BLACK CONFIGURATION
-To play the game the way it was intended do be on this project, some electronic pieces will 
-be needed: a potentiometer, a LDR (Light Dependent Resistor), a 10K ohms resistor and a push button, along with some wires to connect them.
+To play the game the way it was intended to be on this project, some electronic pieces will 
+be needed: a potentiometer, a LDR (Light Dependent Resistor), a 10K-ohm resistor and a push button, along with some wires to connect them.
 
 The BeagleBone Black proper configuration can be seen on the image below:
 ![bbb configuration](http://i.imgur.com/DURERrP.png)
