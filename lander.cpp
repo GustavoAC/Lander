@@ -95,7 +95,10 @@ void sleep_ms(int milliseconds){
 #endif
 }
 
-// NOSSAS //
+/////////////////////////////////////////////////
+////////////// Controller classes ///////////////
+/////////////////////////////////////////////////
+
 struct MovementController {
 	bool &isMoving;
 	int &width;
@@ -173,7 +176,9 @@ struct ButtonController {
 		}
 	}
 };
-/////////////////////////////////////
+/////////////////////////////////////////////////
+/////////// End of controller classes ///////////
+/////////////////////////////////////////////////
 
 
 int main() {
@@ -211,14 +216,18 @@ int main() {
 	bool fistStepBoss = true;
 	bool bossAlive = true;
 
-	// Nossas
+	/////////////////////////////////////////////////
+	//////////////// Controller data ////////////////
+	/////////////////////////////////////////////////
 	bool isMoving = false;
 	bool isShooting = false;
 	bool isPressed = false;
 	int width = 0;
 	int targetX = 0;
 	int bombcount = 3;
-	
+	/////////////////////////////////////////////////
+	//////////// End of controller data /////////////
+	/////////////////////////////////////////////////
 	
 	//debug
 	unsigned long long int nanos;
@@ -477,26 +486,6 @@ int main() {
 			mvprintw(4,4,"isMoving:%d", isMoving);
 			mvprintw(5,4,"targetX:%d", targetX);
 			mvprintw(6,4,"button: %d", isPressed);
-			/*
-			int linesD=w.ws_row;
-			int columnsD=w.ws_col;
-			
-			mvprintw(2,4,"lines %d\n", linesD);
-			mvprintw(3,4,"columns %d\n", columnsD);
-			mvprintw(4,4,"Cursor at x:%i", ship_X);
-			mvprintw(6,4,"Loops %i", loops);
-			if (kbhit()){
-				mvprintw(7,4,"kbhit is at 1");
-			} else{
-				mvprintw(7,4,"kbhit is at 0");
-			}
-			mvprintw(9,4,"wtf:%i", wtf);
-			mvprintw(10,4,"kbhit ch:%i", chKBHIT);
-			mvprintw(11,4,"show at %i", shoot_Y);
-			mvprintw(12,4,"oldwtf:%i", oldwtf);
-			mvprintw(13, 4, "Colours:%i", has_colors());
-			mvprintw(14,4,"cooldownShot: %i", cooldownShot);
-			*/
 		}
 		char bombBar[4] = "   ";
 		for (int i = 0; i < bombcount; i++)
@@ -549,8 +538,9 @@ int main() {
 		oldwtf = wtf;
 		sleep_ms(50);
 
-		// Actions
-		// Movement
+		/////////////////////////////////////////////////
+		/////////////// Movement control ////////////////
+		/////////////////////////////////////////////////
 		if (targetX < ship_X){
 			if ( ship_X != 4 ){
 				ship_X = ship_X - 1;
@@ -577,6 +567,11 @@ int main() {
 				bombcount--;
 			}
 		}
+		
+		/////////////////////////////////////////////////
+		//////////// End of movement control ////////////
+		/////////////////////////////////////////////////
+		
 		
 		++loops;
 		refresh();
