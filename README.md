@@ -20,8 +20,17 @@ Distro | Command
 Debian & based | `sudo apt install g++ libncurses5-dev libncursesw5-dev`
 Arch & based | `sudo pacman -S gcc`
 
+## BEAGLEBONE BLACK CONFIGURATION
+To play the game the way it was intended do be on this project, some electronic pieces will 
+be needed: a potentiometer, a LDR (Light Dependent Resistor), a 10K ohms resistor and a push button, along with some wires to connect them.
+
+The BeagleBone Black proper configuration can be seen on the image below:
+![bbb configuration](http://imgur.com/a/uT6gG)
 
 ## INSTALLATION
+
+Before compiling and running the program, be sure to have your BeagleBone Black set on the right
+configuration like stated above.  
 
 ```bash
 git clone https://github.com/Capuno/Lander.git
@@ -32,13 +41,9 @@ make
 
 ## CONTROLS
 
- * `z` moves left
- * `x` shoots
- * `c` moves right
-
-This can be configured in `config.h` before compiling.
-
-
+ * Potentiometer controls ship's horizontal movement
+ * A gentle finger tap on LDR shoots (must be on an iluminated room)
+ * Push on button activate bomb 
 
 &emsp;
 
