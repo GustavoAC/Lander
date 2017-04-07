@@ -3,13 +3,22 @@ CLI Top-Down Space Shooter
 
 ![Main gif](http://i.imgur.com/70jvdo3.gif)
 
-Lander is a top-down shooter made in C++
+Lander is a top-down shooter made in C++ for the BeagleBone Black board.
+It's based upon the original game done by the original creators listed on the Contributors section.
+
+This implementation focuses on the use of multi-threading on the controller components as a learning
+method.
+It's an assignment for the Operation Systems class at the UFRN Information Technology undergraduate course.
 
 ## CONTRIBUTORS
-Main Contributors:
+Original Creators:
 
 * [MrWhiteGoat](https://github.com/MrWhiteGoat)
 * [Capuno](https://github.com/Capuno)
+
+Current Version:
+* [GustavoAC](https://github.com/GustavoAC)
+* [thiagocesarm](https://github.com/thiagocesarm)
 
 
 ## DEPENDENCIES
@@ -25,7 +34,7 @@ To play the game the way it was intended do be on this project, some electronic 
 be needed: a potentiometer, a LDR (Light Dependent Resistor), a 10K ohms resistor and a push button, along with some wires to connect them.
 
 The BeagleBone Black proper configuration can be seen on the image below:
-![bbb configuration](http://imgur.com/a/uT6gG)
+![bbb configuration](http://i.imgur.com/DURERrP.png)
 
 ## INSTALLATION
 
