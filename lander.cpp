@@ -12,7 +12,13 @@
 #include <locale.h>
 #include <math.h>
 
+#include <chrono>
+#include <signal.h>
+
 #include "config.h"
+
+#include "adc.hpp"
+#include "gpio.hpp"
 
 struct rock_t {
 	int id;
@@ -89,6 +95,86 @@ void sleep_ms(int milliseconds){
 #endif
 }
 
+// NOSSAS //
+struct MovementController {
+	bool &isMoving;
+	int &width;
+	int &targetX;
+
+	MovementController(bool &isMov, int &wid, int &tar) :
+		isMoving(isMov),
+		width(wid),
+		targetX(tar)
+	{} 
+
+	void operator()(){
+		bbb::ADC potentiometer(0);
+		while (true) {
+			int realWidth = width - 6;
+			float power = potentiometer.getValue();
+
+			if (targetX != (int) (3 + realWidth * (power/4095))) {
+				targetX = 3 + realWidth * (power/4095);
+				if (targetX < 4)
+					targetX = 4;
+				if (targetX > realWidth)
+					targetX = realWidth;
+					
+				isMoving = true;
+			} else {
+				isMoving = false;
+			}
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(16));
+		}
+	}
+};
+
+struct LightController {
+	bool &isShooting;
+
+	LightController(bool &isShoot) : isShooting(isShoot)
+	{} 
+
+	void operator()() {
+		bbb::ADC lightSensor(1);
+		while(true) {
+		    if (lightSensor.getValue() < 700) {
+		    	isShooting = true;
+		    } else
+		    	isShooting = false;
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(20));
+		}
+	}
+};
+
+struct ButtonController {
+	bool &isMoving;
+	bool &isShooting;
+	bool &isPressed;
+
+	ButtonController(bool &moving, bool &shooting, bool &press) :
+		isMoving(moving),
+		isShooting(shooting),
+		isPressed(press)
+		{}
+
+	void operator()() {
+		bbb::GPIO button(115);
+		button.setModeIn();
+		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+		while(true) {
+			isPressed = button.getValue();
+			if (isPressed and !isMoving and !isShooting)
+				std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+			else
+				std::this_thread::sleep_for(std::chrono::milliseconds(20));
+		}
+	}
+};
+/////////////////////////////////////
+
 
 int main() {
 	setlocale(LC_ALL,"");
@@ -125,6 +211,28 @@ int main() {
 	bool fistStepBoss = true;
 	bool bossAlive = true;
 
+	// Nossas
+	bool isMoving = false;
+	bool isShooting = false;
+	bool isPressed = false;
+	int width = 0;
+	int targetX = 0;
+	int bombcount = 3;
+	
+	
+	//debug
+	unsigned long long int nanos;
+
+	MovementController movementControl(std::ref(isMoving), std::ref(width), std::ref(targetX));
+	std::thread movementThread(std::ref(movementControl));
+
+	LightController shootControl(std::ref(isShooting));
+	std::thread shootThread(std::ref(shootControl));
+
+	ButtonController bombButton(std::ref(isMoving), std::ref(isShooting), std::ref(isPressed));
+	std::thread bombThread(std::ref(bombButton));
+	// 
+
 	for(int i = 0; i < w.ws_col; i++) {
 		createRock(i);
 		srand((time(0) * i) + time(0));
@@ -134,6 +242,7 @@ int main() {
 	rocks[0].isActive = true;
 	nodelay(stdscr, TRUE);
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+	width = w.ws_col;
 	if (colorsEnabled == true){
 		start_color();
 	}
@@ -142,144 +251,128 @@ int main() {
 		struct winsize w;
 
 		ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);   // GET THE TERMINAL SIZE
+		width = w.ws_col;
 		clear();
 
-		while( true ){
-			auto current_time = std::chrono::high_resolution_clock::now();
-			auto second_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
-			ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-			clear();
+		std::chrono::time_point<std::chrono::system_clock> inicio, fim;
+		unsigned long int nanosegundos;
+	
+		inicio = std::chrono::system_clock::now();
 
-			if (second_time > 66 && bossAlive == true && bossHP > 0){			// TOP TO MID BOSS, i know, pretty stupid code, shut up
-				for (int i = 0; i < bossHP; ++i){
-					mvprintw(1,15+i,"\u2580");
-				}
-				if (bossStart<3){
-					mvprintw(bossStart, w.ws_col/2-4, "_________");
-					mvprintw(bossStart+1, w.ws_col/2-4, "\\ o-X-o /");
-					mvprintw(bossStart+2, w.ws_col/2-4, " \\|_ _|/");
-					mvprintw(bossStart+3, w.ws_col/2-4, "  | V |");
-					bossMov++;
-					if (bossMov == 5){
-						bossStart++;
-						bossMov = 0;
-					}
-				} else if ((w.ws_col/2-4-bossMovX) > 4 && fistStepBoss){		// WHATEVER TO LEFT BOSS
-					mvprintw(bossStart, w.ws_col/2-4-bossMovX, "_________");
-					mvprintw(bossStart+1, w.ws_col/2-4-bossMovX, "\\ o-X-o /");
-					mvprintw(bossStart+2, w.ws_col/2-4-bossMovX, " \\|_ _|/");
-					mvprintw(bossStart+3, w.ws_col/2-4-bossMovX, "  | V |");
-					bossMov++;
+		auto current_time = std::chrono::high_resolution_clock::now();
+		auto second_time = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
+		ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+		width = w.ws_col;
+		clear();
 
-					if (bossMov == 5){
-
-						bossMovX++;
-						bossMov = 0;
-						bossShootCD--;
-
-						if (bossShootCD <= 3){
-							for (int i = 1; i <= 2; ++i){
-								for (int n = 0; n <= 256; ++n){
-									boss_shoot* r = &bossShoot[n];
-									if (!r->isActive){
-										r->isActive = true;
-										r->pos_Y = 6;
-										if (i == 1){
-											r->pos_X = w.ws_col/2-4-bossMovX+2;
-										} else {
-											r->pos_X = w.ws_col/2-4-bossMovX+6;
-										}
-										break;
-									}
-								}
-								if (bossShootCD <= 0){
-									bossShootCD = 10;
-								}
-							}
-						}
-						bossShootID = bossShootID+2; // idk why this is here tbh
-					}
-
-				} else if ((w.ws_col/2-4-bossMovX) < w.ws_col-12){			// TO RIGHT BOSS
-					fistStepBoss = false;
-					mvprintw(bossStart, w.ws_col/2-4-bossMovX, "_________");
-					mvprintw(bossStart+1, w.ws_col/2-4-bossMovX, "\\ o-X-o /");
-					mvprintw(bossStart+2, w.ws_col/2-4-bossMovX, " \\|_ _|/");
-					mvprintw(bossStart+3, w.ws_col/2-4-bossMovX, "  | V |");
-					bossMov++;
-
-					if (bossMov == 5){
-
-						bossMovX--;
-						bossMov = 0;
-						bossShootCD--;
-
-						if (bossShootCD <= 3){
-							for (int i = 1; i <= 2; ++i){
-								for (int n = 0; n <= 256; ++n){
-									boss_shoot* r = &bossShoot[n];
-									if (!r->isActive){
-										r->isActive = true;
-										r->pos_Y = 6;
-										if (i == 1){
-											r->pos_X = w.ws_col/2-4-bossMovX+2;
-										} else {
-											r->pos_X = w.ws_col/2-4-bossMovX+6;
-										}
-										break;
-									}
-								}
-								if (bossShootCD <= 0){
-									bossShootCD = 10;
-								}
-							}
-						}
-					}
-				} else {
-					fistStepBoss = true;
-				}
-				
+		if (second_time > 66 && bossAlive == true && bossHP > 0){			// TOP TO MID BOSS, i know, pretty stupid code, shut up
+			for (int i = 0; i < bossHP; ++i){
+				mvprintw(1,15+i,"|");
 			}
-
-
-			for (int i = 0; i <= 256; ++i){					// BOSS SHOOTS MOVEMENT + HITBOXES + STDOUT
-				boss_shoot* r = &bossShoot[i];
-				if (r->isActive){
-					r->pos_Y++;
-					if (r->pos_Y > w.ws_row){
-						r->isActive = false;
-						r->pos_Y = -10;
-						r->pos_X = -10;
-					}
-					mvprintw(r->pos_Y,r->pos_X,"!");
+			if (bossStart<3){
+				mvprintw(bossStart, w.ws_col/2-4, "_________");
+				mvprintw(bossStart+1, w.ws_col/2-4, "\\ o-X-o /");
+				mvprintw(bossStart+2, w.ws_col/2-4, " \\|_ _|/");
+				mvprintw(bossStart+3, w.ws_col/2-4, "  | V |");
+				bossMov++;
+				if (bossMov == 5){
+					bossStart++;
+					bossMov = 0;
 				}
-				if (r->isActive &&
-					(r->pos_Y == shoot_Y || r->pos_Y == shoot_Y + 1 || r->pos_Y == shoot_Y - 1) &&
-					(r->pos_X == shoot_X || r->pos_X == shoot_X + 1 || r->pos_X == shoot_X + 2)) {
+			} else if ((w.ws_col/2-4-bossMovX) > 4 && fistStepBoss){		// WHATEVER TO LEFT BOSS
+				mvprintw(bossStart, w.ws_col/2-4-bossMovX, "_________");
+				mvprintw(bossStart+1, w.ws_col/2-4-bossMovX, "\\ o-X-o /");
+				mvprintw(bossStart+2, w.ws_col/2-4-bossMovX, " \\|_ _|/");
+				mvprintw(bossStart+3, w.ws_col/2-4-bossMovX, "  | V |");
+				bossMov++;
+
+				if (bossMov == 5){
+
+					bossMovX++;
+					bossMov = 0;
+					bossShootCD--;
+
+					if (bossShootCD <= 3){
+						for (int i = 1; i <= 2; ++i){
+							for (int n = 0; n <= 256; ++n){
+								boss_shoot* r = &bossShoot[n];
+								if (!r->isActive){
+									r->isActive = true;
+									r->pos_Y = 6;
+									if (i == 1){
+										r->pos_X = w.ws_col/2-4-bossMovX+2;
+									} else {
+										r->pos_X = w.ws_col/2-4-bossMovX+6;
+									}
+									break;
+								}
+							}
+							if (bossShootCD <= 0){
+								bossShootCD = 10;
+							}
+						}
+					}
+					bossShootID = bossShootID+2; // idk why this is here tbh
+				}
+
+			} else if ((w.ws_col/2-4-bossMovX) < w.ws_col-12){			// TO RIGHT BOSS
+				fistStepBoss = false;
+				mvprintw(bossStart, w.ws_col/2-4-bossMovX, "_________");
+				mvprintw(bossStart+1, w.ws_col/2-4-bossMovX, "\\ o-X-o /");
+				mvprintw(bossStart+2, w.ws_col/2-4-bossMovX, " \\|_ _|/");
+				mvprintw(bossStart+3, w.ws_col/2-4-bossMovX, "  | V |");
+				bossMov++;
+
+				if (bossMov == 5){
+
+					bossMovX--;
+					bossMov = 0;
+					bossShootCD--;
+
+					if (bossShootCD <= 3){
+						for (int i = 1; i <= 2; ++i){
+							for (int n = 0; n <= 256; ++n){
+								boss_shoot* r = &bossShoot[n];
+								if (!r->isActive){
+									r->isActive = true;
+									r->pos_Y = 6;
+									if (i == 1){
+										r->pos_X = w.ws_col/2-4-bossMovX+2;
+									} else {
+										r->pos_X = w.ws_col/2-4-bossMovX+6;
+									}
+									break;
+								}
+							}
+							if (bossShootCD <= 0){
+								bossShootCD = 10;
+							}
+						}
+					}
+				}
+			} else {
+				fistStepBoss = true;
+			}
+			
+		}
+
+
+		for (int i = 0; i <= 256; ++i){					// BOSS SHOOTS MOVEMENT + HITBOXES + STDOUT
+			boss_shoot* r = &bossShoot[i];
+			if (r->isActive){
+				r->pos_Y++;
+				if (r->pos_Y > w.ws_row){
 					r->isActive = false;
-					bossHP--;
-					if (bossHP == 0){
-						score = score + 25000;
-						// BOSS DEAD ANIMATION HERE
-					}
-					shoot = false;
-					shoot_X = -10;
-					shoot_Y = -10;
+					r->pos_Y = -10;
+					r->pos_X = -10;
 				}
-				
-				if ((ship_X == r->pos_X || ship_X + 1 == r->pos_X || ship_X + 2 == r->pos_X)
-					&& (r->pos_Y > (w.ws_row - 3))) {
-					goto GOVER;
-				}
+				mvprintw(r->pos_Y,r->pos_X,"!");
 			}
-
-			if ((bossStart == shoot_Y || bossStart+1 == shoot_Y || bossStart+2 == shoot_Y) &&
-				(w.ws_col/2-4-bossMovX == shoot_X || w.ws_col/2-4-bossMovX+1 == shoot_X ||
-				w.ws_col/2-4-bossMovX+2 == shoot_X || w.ws_col/2-4-bossMovX+3 == shoot_X ||
-				w.ws_col/2-4-bossMovX+4 == shoot_X || w.ws_col/2-4-bossMovX+5 == shoot_X ||
-				w.ws_col/2-4-bossMovX+6 == shoot_X || w.ws_col/2-4-bossMovX+7 == shoot_X ||
-				w.ws_col/2-4-bossMovX+8 == shoot_X)) {
-				bossHP=bossHP-5;
+			if (r->isActive &&
+				(r->pos_Y == shoot_Y || r->pos_Y == shoot_Y + 1 || r->pos_Y == shoot_Y - 1) &&
+				(r->pos_X == shoot_X || r->pos_X == shoot_X + 1 || r->pos_X == shoot_X + 2)) {
+				r->isActive = false;
+				bossHP--;
 				if (bossHP == 0){
 					score = score + 25000;
 					// BOSS DEAD ANIMATION HERE
@@ -288,191 +381,215 @@ int main() {
 				shoot_X = -10;
 				shoot_Y = -10;
 			}
-
-			if ( second_time > 25 && laserCD <= 0 ){    //LASER (POWERUP) CREATION
-				pu_laser_X=4+rand()%((w.ws_col-7)-4);
-				pu_laser_Y=0;
-				mvprintw(pu_laser_Y,pu_laser_X,"Y");
-				laserOnScreen = true;
-				laserCD=300;
+			
+			if ((ship_X == r->pos_X || ship_X + 1 == r->pos_X || ship_X + 2 == r->pos_X)
+				&& (r->pos_Y > (w.ws_row - 3))) {
+				goto GOVER;
 			}
-			if ( laserOnScreen ){               //LASER (POWERUP) MOVEMENT
-				lsmv_counter++;
-				if (lsmv_counter == 2){
-					lsmv_counter = 0;
-					++pu_laser_Y;
-				}
-				mvprintw(pu_laser_Y,pu_laser_X,"Y");
-				if (pu_laser_Y==w.ws_row-3 && ( pu_laser_X == ship_X || pu_laser_X == ship_X+1 || pu_laser_X == ship_X+2 )){
-					laserOnScreen = false;
-					laserEnabled = true;
-					restartLaser=200;
-				} else if (pu_laser_Y > w.ws_row){
-					laserOnScreen = false;
-					laserEnabled = false;
-				} 
-			}
-			--laserCD;
-			if (restartLaser == 0){
-				laserEnabled = false;
-			} else {
-				--restartLaser;
-			}
-
-			for(int i = 0; i < w.ws_col; i++) {
-				rock_t* r = &rocks[i];
-				if (r->pos_Y > w.ws_row) {
-					wtf += r->velocity;
-					destroyRock(i);
-					r->needsRock = 1;
-				}
-				if (r->isActive &&
-					(r->pos_Y == shoot_Y || r->pos_Y == shoot_Y + 1 || r->pos_Y == shoot_Y - 1) &&
-					(r->pos_X == shoot_X || r->pos_X == shoot_X + 1 || r->pos_X == shoot_X + 2)) {
-					wtf += 2 * r->velocity;
-					destroyRock(i);
-					rocks[i].needsRock = 1;
-					shoot = false;
-					shoot_X = -10;
-					shoot_Y = -10;
-				}
-				if (r->needsRock == 1) {
-					r->pos_X = rand() % (w.ws_col - 7) + 4;
-					srand((time(0) * i) + time(0));
-					r->needsRock = 0;
-				}
-				if ((ship_X == r->pos_X || ship_X + 1 == r->pos_X || ship_X + 2 == r->pos_X)
-					&& (r->pos_Y > (w.ws_row - 3))) {
-					goto GOVER;
-				}
-			}
-
-			if (kbhit()){
-				key = getch();
-				break;
-			}
-
-			if ( cooldownShot > 0 ) {
-				--cooldownShot;
-			}
-
-			for (int i = 0; i < w.ws_row; ++i){     // BORDERS
-				mvprintw(i,3, "\u2503");
-				mvprintw(i,w.ws_col - 3, "\u2503");
-			}
-			if (debugGraph){
-				int linesD=w.ws_row;
-				int columnsD=w.ws_col;
-				mvprintw(2,4,"lines %d\n", linesD);
-				mvprintw(3,4,"columns %d\n", columnsD);
-				mvprintw(4,4,"Cursor at x:%i", ship_X);
-				mvprintw(6,4,"Loops %i", loops);
-				if (kbhit()){
-					mvprintw(7,4,"kbhit is at 1");
-				} else{
-					mvprintw(7,4,"kbhit is at 0");
-				}
-				mvprintw(9,4,"wtf:%i", wtf);
-				mvprintw(10,4,"kbhit ch:%i", chKBHIT);
-				mvprintw(11,4,"show at %i", shoot_Y);
-				mvprintw(12,4,"oldwtf:%i", oldwtf);
-				mvprintw(13, 4, "Colours:%i", has_colors());
-				mvprintw(14,4,"cooldownShot: %i", cooldownShot);
-			}
-			mvprintw(0, 4, "Score:%i", score);
-			mvprintw(1, 4, "Time:%i", second_time);
-			mvprintw(0,w.ws_col - 3,"\u2503");
-			mvprintw(1,w.ws_col - 3,"\u2503");
-			mvprintw(2,w.ws_col - 3,"\u2503");
-			mvprintw(3,w.ws_col - 3,"\u2503");
-			if (laserEnabled){                      // THE ACTUAL LASER
-				for (int i = 0; i < w.ws_row-4; ++i){
-					init_pair(1, COLOR_BLUE, COLOR_BLACK);
-					attron(COLOR_PAIR(1));
-					mvprintw(i,ship_X+1,"\u2502");
-					attroff(COLOR_PAIR(1));
-				}
-			}
-			if (shoot){
-				mvprintw(shoot_Y,shoot_X+1,"*");
-				--shoot_Y;
-				if ( shoot_Y == 0 ){
-					shoot = false;
-					shoot_Y = -10;
-				}
-			}
-			refresh();
-			mvprintw(w.ws_row - 3,ship_X,"/A\\");
-			for(int i = 0; i < w.ws_col; i++) {
-				rock_t* r = &rocks[i];
-				if(r->isActive) {
-					if(r->velocity == 2 && second_time >= 30) {
-						init_pair(1, COLOR_RED, COLOR_BLACK);
-						attron(COLOR_PAIR(1));
-						mvprintw(r->pos_Y, r->pos_X,"X");
-						attroff(COLOR_PAIR(1));
-					}else{
-						mvprintw(r->pos_Y, r->pos_X,"X");
-						r->velocity = 1;
-					}
-					r->pos_Y += r->velocity;
-				}
-			}
-
-			if (kbhit()){
-				key = getch();
-				break;
-			}
-			for(int i = 0; i <= second_time / 10; i++) {
-				rocks[i].isActive = true;
-			}
-			score += (wtf - oldwtf) * (second_time * 0.75);
-			oldwtf = wtf;
-			sleep_ms(50);
-
-			if (kbhit()){
-				key = getch();
-				break;
-			}
-
-			++loops;
-
-			if (kbhit()){
-				key = getch();
-				break;
-			}
-			refresh();
 		}
-		if ( key == KEY_MOVE_LEFT ){
-			if ( ship_X == 4 ){
-				continue;
+
+		if ((bossStart == shoot_Y || bossStart+1 == shoot_Y || bossStart+2 == shoot_Y) &&
+			(w.ws_col/2-4-bossMovX == shoot_X || w.ws_col/2-4-bossMovX+1 == shoot_X ||
+			w.ws_col/2-4-bossMovX+2 == shoot_X || w.ws_col/2-4-bossMovX+3 == shoot_X ||
+			w.ws_col/2-4-bossMovX+4 == shoot_X || w.ws_col/2-4-bossMovX+5 == shoot_X ||
+			w.ws_col/2-4-bossMovX+6 == shoot_X || w.ws_col/2-4-bossMovX+7 == shoot_X ||
+			w.ws_col/2-4-bossMovX+8 == shoot_X)) {
+			bossHP=bossHP-5;
+			if (bossHP == 0){
+				score = score + 25000;
+				// BOSS DEAD ANIMATION HERE
+			}
+			shoot = false;
+			shoot_X = -10;
+			shoot_Y = -10;
+		}
+
+		if ( second_time > 25 && laserCD <= 0 ){    //LASER (POWERUP) CREATION
+			pu_laser_X=4+rand()%((w.ws_col-7)-4);
+			pu_laser_Y=0;
+			mvprintw(pu_laser_Y,pu_laser_X,"Y");
+			laserOnScreen = true;
+			laserCD=300;
+		}
+		if ( laserOnScreen ){               //LASER (POWERUP) MOVEMENT
+			lsmv_counter++;
+			if (lsmv_counter == 2){
+				lsmv_counter = 0;
+				++pu_laser_Y;
+			}
+			mvprintw(pu_laser_Y,pu_laser_X,"Y");
+			if (pu_laser_Y==w.ws_row-3 && ( pu_laser_X == ship_X || pu_laser_X == ship_X+1 || pu_laser_X == ship_X+2 )){
+				laserOnScreen = false;
+				laserEnabled = true;
+				restartLaser=200;
+			} else if (pu_laser_Y > w.ws_row){
+				laserOnScreen = false;
+				laserEnabled = false;
+			} 
+		}
+		--laserCD;
+		if (restartLaser == 0){
+			laserEnabled = false;
+		} else {
+			--restartLaser;
+		}
+
+		for(int i = 0; i < w.ws_col; i++) {
+			rock_t* r = &rocks[i];
+			if (r->pos_Y > w.ws_row) {
+				wtf += r->velocity;
+				destroyRock(i);
+				r->needsRock = 1;
+			}
+			if (r->isActive &&
+				(r->pos_Y == shoot_Y || r->pos_Y == shoot_Y + 1 || r->pos_Y == shoot_Y - 1) &&
+				(r->pos_X == shoot_X || r->pos_X == shoot_X + 1 || r->pos_X == shoot_X + 2)) {
+				wtf += 2 * r->velocity;
+				destroyRock(i);
+				rocks[i].needsRock = 1;
+				shoot = false;
+				shoot_X = -10;
+				shoot_Y = -10;
+			}
+			if (r->needsRock == 1) {
+				r->pos_X = rand() % (w.ws_col - 7) + 4;
+				srand((time(0) * i) + time(0));
+				r->needsRock = 0;
+			}
+			if ((ship_X == r->pos_X || ship_X + 1 == r->pos_X || ship_X + 2 == r->pos_X)
+				&& (r->pos_Y > (w.ws_row - 3))) {
+				goto GOVER;
+			}
+		}
+
+		if ( cooldownShot > 0 ) {
+			--cooldownShot;
+		}
+
+		for (int i = 0; i < w.ws_row; ++i){     // BORDERS
+			mvprintw(i,3, "|");
+			mvprintw(i,w.ws_col - 3, "|");
+		}
+		if (debugGraph){
+			
+			mvprintw(2,4,"Sleeping for %llu nanoseconds", nanos);
+			mvprintw(3,4,"isShooting: %d\n", isShooting);
+			mvprintw(4,4,"isMoving:%d", isMoving);
+			mvprintw(5,4,"targetX:%d", targetX);
+			mvprintw(6,4,"button: %d", isPressed);
+			/*
+			int linesD=w.ws_row;
+			int columnsD=w.ws_col;
+			
+			mvprintw(2,4,"lines %d\n", linesD);
+			mvprintw(3,4,"columns %d\n", columnsD);
+			mvprintw(4,4,"Cursor at x:%i", ship_X);
+			mvprintw(6,4,"Loops %i", loops);
+			if (kbhit()){
+				mvprintw(7,4,"kbhit is at 1");
 			} else{
+				mvprintw(7,4,"kbhit is at 0");
+			}
+			mvprintw(9,4,"wtf:%i", wtf);
+			mvprintw(10,4,"kbhit ch:%i", chKBHIT);
+			mvprintw(11,4,"show at %i", shoot_Y);
+			mvprintw(12,4,"oldwtf:%i", oldwtf);
+			mvprintw(13, 4, "Colours:%i", has_colors());
+			mvprintw(14,4,"cooldownShot: %i", cooldownShot);
+			*/
+		}
+		char bombBar[4] = "   ";
+		for (int i = 0; i < bombcount; i++)
+			bombBar[i] = '|';
+			
+		mvprintw(0, 4, "Score:%i", score);
+		mvprintw(1, 4, "Time:%i", (int) second_time);
+		mvprintw(2, 4, "Bombs:%s", bombBar);
+		mvprintw(0,w.ws_col - 3,"|");
+		mvprintw(1,w.ws_col - 3,"|");
+		mvprintw(2,w.ws_col - 3,"|");
+		mvprintw(3,w.ws_col - 3,"|");
+		if (laserEnabled){                      // THE ACTUAL LASER
+			for (int i = 0; i < w.ws_row-4; ++i){
+				init_pair(1, COLOR_BLUE, COLOR_BLACK);
+				attron(COLOR_PAIR(1));
+				mvprintw(i,ship_X+1,"|");
+				attroff(COLOR_PAIR(1));
+			}
+		}
+		if (shoot){
+			mvprintw(shoot_Y,shoot_X+1,"*");
+			--shoot_Y;
+			if ( shoot_Y == 0 ){
+				shoot = false;
+				shoot_Y = -10;
+			}
+		}
+		mvprintw(w.ws_row - 3,ship_X,"/A\\");
+		for(int i = 0; i < w.ws_col; i++) {
+			rock_t* r = &rocks[i];
+			if(r->isActive) {
+				if(r->velocity == 2 && second_time >= 30) {
+					init_pair(1, COLOR_RED, COLOR_BLACK);
+					attron(COLOR_PAIR(1));
+					mvprintw(r->pos_Y, r->pos_X,"X");
+					attroff(COLOR_PAIR(1));
+				}else{
+					mvprintw(r->pos_Y, r->pos_X,"X");
+					r->velocity = 1;
+				}
+				r->pos_Y += r->velocity;
+			}
+		}
+
+		for(int i = 0; i <= second_time / 10; i++) {
+			rocks[i].isActive = true;
+		}
+		score += (wtf - oldwtf) * (second_time * 0.75);
+		oldwtf = wtf;
+		sleep_ms(50);
+
+		// Actions
+		// Movement
+		if (targetX < ship_X){
+			if ( ship_X != 4 ){
 				ship_X = ship_X - 1;
 				mvprintw(w.ws_row - 3,ship_X,"/A\\");
 			}
-			++loops;
-		} else if ( key == KEY_MOVE_RIGHT ){
-			if ( ship_X == w.ws_col - 6 ){
-				++loops;
-				continue;
-			} else{
+		} else if (targetX > ship_X){
+			if ( ship_X != w.ws_col - 6 ){
 				ship_X = ship_X + 1;
 				mvprintw(w.ws_row - 3,ship_X,"/A\\");
-				++loops;
 			}
-		} else if ( key == KEY_SHOOT  && !shoot && cooldownShot == 0) {
+		} else if ( isShooting && !shoot && cooldownShot == 0) {
 			cooldownShot = 20;
 			shoot = true;
 			shoot_X = ship_X;
 			shoot_Y = w.ws_row - 4;
-			++loops;
-		} else {
-			continue;
-			++loops;
+		} else if (isPressed and !isShooting and !isMoving) {
+			// bomb
+			if (bombcount > 0) {
+				isPressed = false;
+				for(int i = 0; i < w.ws_col; i++) {
+					destroyRock(i);
+					rocks[i].isActive = false;
+				}
+				bombcount--;
+			}
 		}
+		
+		++loops;
 		refresh();
+		
+		// sleep for the rest of the time
+		fim = std::chrono::system_clock::now();
+		nanos = 16000000 - std::chrono::duration_cast<std::chrono::nanoseconds> (fim-inicio).count();
+		std::this_thread::sleep_for(std::chrono::nanoseconds(16000000 -
+			 std::chrono::duration_cast<std::chrono::nanoseconds> (fim-inicio).count()));
 	}
+	
 	GOVER:ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);   // GET THE TERMINAL SIZE
+	width = w.ws_col;
 
 	std::ifstream highscore;
 	highscore.open("highscore");
@@ -500,5 +617,6 @@ int main() {
 	refresh();
 	sleep_ms(6000);
 	endwin();
+	
 	return 0;
 }
