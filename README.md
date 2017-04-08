@@ -50,9 +50,12 @@ make
 
 ## CONTROLS
 
- * Potentiometer controls ship's horizontal movement
- * A gentle finger tap on LDR shoots (must be on an iluminated room)
- * Push on button activate bomb 
+ * Potentiometer controls spaceship's horizontal movement
+ * A gentle finger tap on LDR shoots (must be on an illuminated room)
+ * Push on button activates bomb and clears all simple enemies on screen
+
+ Setting the potentiometer on a specific position will make the spaceship move along the 
+ screen until it reaches that specific screen-related position.
 
 &emsp;
 
